@@ -1,9 +1,10 @@
+const fs = require("fs");
 const { ethers } = require("ethers");
 const dotenv = require("dotenv");
 
 dotenv.config();
 
-const network = "arbitrum";
+const network = "mainnet";
 var providerUrl;
 switch (network) {
     case "mainnet":
@@ -45,16 +46,30 @@ const erc20Abi = [
 
 const targetTokenSymbol = "FADE";
 
+function saveContractsToFile(contracts) {
+  fs.writeFile("contracts.json", JSON.stringify(contracts, null, 2), (err) => {
+    if (err) {
+      console.error(`Error writing contracts to file: ${err.message}`);
+    } else {
+      console.log("Contracts saved to file");
+    }
+  });
+}
+
+let contracts = [];
+
 provider.on("block", async (blockNumber) => {
   console.log(`New block: ${blockNumber}`);
 
   try {
     const block = await provider.getBlockWithTransactions(blockNumber);
-
+    let contractsFound = false;
     for (const transaction of block.transactions) {
       if (transaction.to === null) {
+        contractsFound = true;
         const contractAddress = ethers.utils.getContractAddress(transaction);
         console.log(`New contract deployed: ${contractAddress}`);
+        contracts.push(contractAddress); // Add the contract address to the array
 
         try {
           const contract = new ethers.Contract(contractAddress, erc20Abi, provider);
@@ -70,6 +85,9 @@ provider.on("block", async (blockNumber) => {
           console.log(`Failed to fetch token name for contract at ${contractAddress}: ${error.message}`);
         }
       }
+    }
+    if (contractsFound) {
+      saveContractsToFile(contracts);
     }
   } catch (error) {
     console.error(`Error processing block ${blockNumber}: ${error.message}`);
